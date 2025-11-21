@@ -3,19 +3,16 @@ FROM eclipse-temurin:21 as build
 
 WORKDIR /app
 
-# Copiar mvnw y darle permisos
-COPY mvnw .
-COPY .mvn .mvn
+# Copiar TODO el proyecto
+COPY . .
+
+# Dar permisos al wrapper
 RUN chmod +x mvnw
 
-# Copiar el resto
-COPY pom.xml .
-COPY src src
-
-# Construir la app
+# Construir la aplicación
 RUN ./mvnw -DskipTests package
 
-# Etapa 2: Imagen liviana para producción con JRE 21
+# Etapa 2: Imagen de ejecución con JRE 21
 FROM eclipse-temurin:21-jre
 
 WORKDIR /app
@@ -24,4 +21,4 @@ COPY --from=build /app/target/*.jar app.jar
 
 EXPOSE 8080
 
-ENTRYPOINT ["java","-jar","app.jar"]
+ENTRYPOINT ["java", "-jar", "app.jar"]
