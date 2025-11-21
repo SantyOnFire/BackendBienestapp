@@ -1,22 +1,22 @@
-# Etapa 1: Build con Maven Wrapper
-FROM eclipse-temurin:17 as build
+# Etapa 1: Build con Maven Wrapper y JDK 21
+FROM eclipse-temurin:21 as build
 
 WORKDIR /app
 
-# Copiar mvnw y darle permisos de ejecución
+# Copiar mvnw y darle permisos
 COPY mvnw .
 COPY .mvn .mvn
 RUN chmod +x mvnw
 
-# Copiar el resto del proyecto
+# Copiar el resto
 COPY pom.xml .
 COPY src src
 
-# Empaquetar la app sin tests
+# Construir la app
 RUN ./mvnw -DskipTests package
 
-# Etapa 2: Imagen liviana para producción
-FROM eclipse-temurin:17-jre
+# Etapa 2: Imagen liviana para producción con JRE 21
+FROM eclipse-temurin:21-jre
 
 WORKDIR /app
 
