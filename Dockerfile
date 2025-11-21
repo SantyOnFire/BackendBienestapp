@@ -1,17 +1,27 @@
-FROM eclipse-temurin:21-jdk
+# Etapa 1: Build con Maven Wrapper
+FROM eclipse-temurin:17 as build
 
 WORKDIR /app
 
-COPY pom.xml .
-COPY .mvn .mvn
+# Copiar mvnw y darle permisos de ejecución
 COPY mvnw .
+COPY .mvn .mvn
 RUN chmod +x mvnw
-RUN ./mvnw dependency:go-offline
 
-COPY src ./src
+# Copiar el resto del proyecto
+COPY pom.xml .
+COPY src src
 
-RUN ./mvnw package -DskipTests
+# Empaquetar la app sin tests
+RUN ./mvnw -DskipTests package
+
+# Etapa 2: Imagen liviana para producción
+FROM eclipse-temurin:17-jre
+
+WORKDIR /app
+
+COPY --from=build /app/target/*.jar app.jar
 
 EXPOSE 8080
 
-CMD ["java", "-jar", "target/bienestar-backend-0.0.1-SNAPSHOT.jar"]
+ENTRYPOINT ["java","-jar","app.jar"]
