@@ -2,6 +2,7 @@ package com.bienestar.controller;
 
 import com.bienestar.model.DeepSeekRequest;
 import com.bienestar.model.DeepSeekResponse;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.RestTemplate;
@@ -14,55 +15,95 @@ import java.util.*;
 public class DeepSeekController {
 
     private static final String GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
-    private static final String API_KEY = "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";
+
+    @Value("${groq.api.key}")
+    private String apiKey;
 
     @PostMapping("/llama")
     public ResponseEntity<DeepSeekResponse> consultarGroqLlama(@RequestBody DeepSeekRequest request) {
-        return procesarSolicitud(request, "llama3-8b-8192");
+        return procesarSolicitud(request, "llama-3.1-8b-instant");
     }
 
     @PostMapping("/groq")
     public ResponseEntity<DeepSeekResponse> consultarGroq(@RequestBody DeepSeekRequest request) {
-        return procesarSolicitud(request, "mixtral-8x7b-32768"); // o usa llama si mixtral falla
+        return procesarSolicitud(request, "llama-3.1-8b-instant");
     }
 
     private ResponseEntity<DeepSeekResponse> procesarSolicitud(DeepSeekRequest request, String modelo) {
+
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.setBearerAuth(API_KEY);
+        headers.setBearerAuth(apiKey);
 
         Map<String, Object> body = new HashMap<>();
         body.put("model", modelo);
 
         List<Map<String, String>> messages = new ArrayList<>();
-        messages.add(Map.of("role", "system", "content", "Eres un terapeuta emocional que responde con empatía y comprensión."));
-        messages.add(Map.of("role", "user", "content", request.getMessage()));
+        messages.add(Map.of(
+                "role",
+                "system",
+                "content",
+                "Eres un terapeuta emocional que responde con empatía, calma y comprensión."
+        ));
+        messages.add(Map.of(
+                "role",
+                "user",
+                "content",
+                request.getMessage()
+        ));
+
         body.put("messages", messages);
         body.put("temperature", 0.7);
 
         HttpEntity<Object> entity = new HttpEntity<>(body, headers);
-        RestTemplate restTemplate = new RestTemplate();
+        RestTemplate rest = new RestTemplate();
 
         try {
-            ResponseEntity<String> response = restTemplate.postForEntity(GROQ_API_URL, entity, String.class);
+            ResponseEntity<String> response = rest.postForEntity(GROQ_API_URL, entity, String.class);
 
-            // ✅ Extraer solo el contenido del mensaje assistant
             String rawJson = response.getBody();
             String content = "Respuesta no encontrada";
 
             if (rawJson != null && rawJson.contains("\"content\"")) {
                 int start = rawJson.indexOf("\"content\":\"") + 11;
                 int end = rawJson.indexOf("\"", start);
-                content = rawJson.substring(start, end)
-                        .replace("\\n", "\n")
-                        .replace("\\\"", "\"");
+                if (end > start) {
+                    content = rawJson.substring(start, end)
+                            .replace("\\n", "\n")
+                            .replace("\\\"", "\"");
+                }
             }
 
             return ResponseEntity.ok(new DeepSeekResponse(content));
 
         } catch (Exception e) {
-            e.printStackTrace(); // para depurar en consola
-            return ResponseEntity.status(500).body(new DeepSeekResponse("Error al llamar a Groq: " + e.getMessage()));
+            e.printStackTrace();
+            return ResponseEntity.status(500)
+                    .body(new DeepSeekResponse("Error al llamar a Groq: " + e.getMessage()));
+        }
+    }
+
+    // 🔥 Endpoint para listar los modelos que tu cuenta puede usar
+    @GetMapping("/modelos")
+    public ResponseEntity<String> listarModelos() {
+        try {
+            HttpHeaders headers = new HttpHeaders();
+            headers.setBearerAuth(apiKey);
+
+            HttpEntity<Void> entity = new HttpEntity<>(headers);
+            RestTemplate rest = new RestTemplate();
+
+            ResponseEntity<String> response = rest.exchange(
+                    "https://api.groq.com/openai/v1/models",
+                    HttpMethod.GET,
+                    entity,
+                    String.class
+            );
+
+            return ResponseEntity.ok(response.getBody());
+
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body("ERROR: " + e.getMessage());
         }
     }
 }
